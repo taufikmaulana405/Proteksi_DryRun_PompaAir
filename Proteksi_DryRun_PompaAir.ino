@@ -1,57 +1,67 @@
-// Kontrol pompa berdasarkan aliran FS300A.
-// Pelampung tandon bekerja melalui instalasi terpisah.
-// Tidak menggunakan sensor level sumur.
+// Proteksi Dry Run Pompa Air
 
+// Pin Sensor aliran FS300A (input interrupt)
+// Pin Relay pompa (output digital)
 const byte FLOW_PIN  = 2;
 const byte RELAY_PIN = 8;
 
+// Relay Ouput Signal
 const byte RELAY_ON  = HIGH;
 const byte RELAY_OFF = LOW;
 
 // Asumsi awal FS300A: frekuensi (Hz) = 5.5 x debit (L/min).
-// Sesuaikan setelah kalibrasi sensor.
 const float FLOW_FACTOR = 5.5f;
-const float MIN_FLOW_LPM = 2.0f;
+const float MIN_FLOW_LPM = 7.0f;
 
 // true: tampilkan debit setiap detik pada semua status.
 // false: tampilkan debit hanya saat STARTING atau RUNNING.
-const bool ALWAYS_SHOW_FLOW = true;
+const bool ALWAYS_SHOW_FLOW = false;
 
-const unsigned long START_TIMEOUT_MS = 8000UL;
-const unsigned long LOW_FLOW_MS      = 3000UL;
-const unsigned long MAX_RUN_MS       = 30UL * 60UL * 1000UL;
-const unsigned long REST_MS          = 30UL * 60UL * 1000UL;
-const unsigned long SAMPLE_MS        = 1000UL;
+// Waktu dalam milidetik
+const unsigned long START_TIMEOUT_MS = 15000UL; // Batas waktu menunggu aliran saat STARTING
+const unsigned long LOW_FLOW_MS      = 3000UL; // Batas waktu aliran rendah saat RUNNING
+const unsigned long MAX_RUN_MS       = 30UL * 60UL * 1000UL; // Batas waktu operasi pompa
+const unsigned long REST_MS          = 30UL * 60UL * 1000UL; // Batas waktu istirahat (RESTING)
+const unsigned long SAMPLE_MS        = 1000UL; // Interval sampling sensor aliran
 
+// Status Pompa
 enum State {
   RESTING,
   STARTING,
   RUNNING
 };
+State state = RESTING; // Status awal saat Arduino menyala
 
-State state = RESTING;
-
+// Variabel global untuk menghitung pulsa sensor aliran
 volatile unsigned long pulseCount = 0;
 
+// Variabel waktu untuk menghitung durasi dan interval
 unsigned long restStartedAt = 0;
 unsigned long pumpStartedAt = 0;
 unsigned long lastSampleAt  = 0;
 unsigned long lowFlowDuration = 0;
 
+// Variabel untuk menghitung total volume air
 float cycleVolumeLiters = 0.0f;
 
+// Fungsi interrupt untuk menghitung pulsa sensor aliran
 void countPulse() {
   pulseCount++;
 }
 
+// Fungsi untuk membaca dan menghapus jumlah pulsa sensor aliran
 unsigned long readAndClearPulses() {
   noInterrupts();
   unsigned long count = pulseCount;
   pulseCount = 0;
   interrupts();
+
+  // Mengembalikan jumlah pulsa yang dibaca sebelum dihapus.
   return count;
 }
 
+// Fungsi untuk mematikan pompa dan mengatur status ke RESTING
+// Input: now = waktu saat ini (millis), reason = alasan mematikan pompa
 void stopPump(unsigned long now, const __FlashStringHelper *reason) {
   digitalWrite(RELAY_PIN, RELAY_OFF);
 
@@ -64,6 +74,8 @@ void stopPump(unsigned long now, const __FlashStringHelper *reason) {
   Serial.println(F("Istirahat 30 menit."));
 }
 
+// Fungsi untuk memulai pompa dan mengatur status ke STARTING
+// Input: now = waktu saat ini (millis)
 void startPump(unsigned long now) {
   readAndClearPulses();
 
@@ -79,6 +91,8 @@ void startPump(unsigned long now) {
   Serial.println(F("Pompa ON: total air direset, menunggu aliran."));
 }
 
+// Fungsi untuk menampilkan countdown waktu dalam format mm:ss
+// Input: remainingMs = waktu tersisa dalam milidetik
 void printCountdown(unsigned long remainingMs) {
   // Bulatkan ke atas agar tidak menampilkan 00:00 terlalu awal.
   unsigned long seconds = remainingMs / 1000UL;
@@ -96,6 +110,9 @@ void printCountdown(unsigned long remainingMs) {
   Serial.print(seconds);
 }
 
+// Fungsi untuk menghitung waktu tersisa dari durasi dan waktu yang telah berlalu
+// Input: duration = durasi total (ms), elapsed = waktu yang telah berlalu (ms)
+// Output: waktu tersisa (ms)
 unsigned long remainingTime(unsigned long duration, unsigned long elapsed) {
   if (elapsed >= duration) {
     return 0UL;
@@ -104,6 +121,8 @@ unsigned long remainingTime(unsigned long duration, unsigned long elapsed) {
   }
 }
 
+// Fungsi untuk memperbarui status LED
+// Input: now = waktu saat ini (millis)
 void updateStatusLed(unsigned long now) {
   static State previousState = RESTING;
   static unsigned long lastBlinkAt = 0;
@@ -147,12 +166,15 @@ void updateStatusLed(unsigned long now) {
 }
 
 void setup() {
+  // Inisialisasi pin relay
   digitalWrite(RELAY_PIN, RELAY_OFF);
   pinMode(RELAY_PIN, OUTPUT);
 
+  // Inisialisasi pin LED bawaan
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
 
+  // Inisialisasi pin sensor aliran
   pinMode(FLOW_PIN, INPUT_PULLUP);
   attachInterrupt(
     digitalPinToInterrupt(FLOW_PIN),
@@ -160,6 +182,7 @@ void setup() {
     RISING
   );
 
+  // Inisialisasi Serial Monitor
   Serial.begin(9600);
 
   // Langsung STARTING dan aktifkan relay saat Arduino menyala.
@@ -167,8 +190,10 @@ void setup() {
 }
 
 void loop() {
+  // Ambil waktu saat ini dalam milidetik
   unsigned long now = millis();
 
+  // Perbarui status LED sesuai status pompa.
   updateStatusLed(now);
 
   // Sampling dan laporan Serial setiap detik pada semua status.
@@ -177,6 +202,7 @@ void loop() {
     unsigned long pulses = readAndClearPulses();
     lastSampleAt = now;
 
+    // Hitung debit air dalam L/min
     float frequencyHz = pulses * 1000.0f / elapsed;
     float flowLpm = frequencyHz / FLOW_FACTOR;
 
@@ -186,6 +212,7 @@ void loop() {
       cycleVolumeLiters += volumeThisSample;
     }
 
+    // Evaluasi apakah aliran air memenuhi batas minimum.
     bool flowOK = (flowLpm >= MIN_FLOW_LPM);
 
     // Evaluasi aliran hanya ketika relay diperintahkan ON.
@@ -257,8 +284,7 @@ void loop() {
     return;
   }
 
-  if (state == STARTING &&
-      now - pumpStartedAt >= START_TIMEOUT_MS) {
+  if (state == STARTING && now - pumpStartedAt >= START_TIMEOUT_MS) {
     stopPump(now, F("Aliran awal tidak terdeteksi"));
   }
 }
