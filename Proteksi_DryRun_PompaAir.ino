@@ -5,8 +5,8 @@
 const byte FLOW_PIN  = 2;
 const byte RELAY_PIN = 8;
 
-const byte RELAY_ON  = LOW;
-const byte RELAY_OFF = HIGH;
+const byte RELAY_ON  = HIGH;
+const byte RELAY_OFF = LOW;
 
 // Asumsi awal FS300A: frekuensi (Hz) = 5.5 x debit (L/min).
 // Sesuaikan setelah kalibrasi sensor.
