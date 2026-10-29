@@ -74,6 +74,27 @@ void startPump(unsigned long now) {
   Serial.println(F("Pompa ON: menunggu aliran."));
 }
 
+void printCountdown(unsigned long remainingMs) {
+  // Bulatkan ke atas agar tidak menampilkan 00:00 terlalu awal.
+  unsigned long seconds = remainingMs / 1000UL;
+  if (remainingMs % 1000UL != 0) {
+    seconds++;
+  }
+
+  unsigned long minutes = seconds / 60UL;
+  seconds %= 60UL;
+
+  if (minutes < 10) Serial.print('0');
+  Serial.print(minutes);
+  Serial.print(':');
+  if (seconds < 10) Serial.print('0');
+  Serial.print(seconds);
+}
+
+unsigned long remainingTime(unsigned long duration, unsigned long elapsed) {
+  return (elapsed >= duration) ? 0UL : duration - elapsed;
+}
+
 void setup() {
   digitalWrite(RELAY_PIN, RELAY_OFF);
   pinMode(RELAY_PIN, OUTPUT);
@@ -94,7 +115,7 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // Pembacaan sensor selalu berjalan, termasuk saat RESTING.
+  // Sampling dan laporan Serial setiap detik pada semua status.
   if (now - lastSampleAt >= SAMPLE_MS) {
     unsigned long elapsed = now - lastSampleAt;
     unsigned long pulses = readAndClearPulses();
@@ -102,30 +123,9 @@ void loop() {
 
     float frequencyHz = pulses * 1000.0f / elapsed;
     float flowLpm = frequencyHz / FLOW_FACTOR;
-
-    if (ALWAYS_SHOW_FLOW || state != RESTING) {
-      Serial.print(F("Status: "));
-
-      switch (state) {
-        case RESTING:
-          Serial.print(F("RESTING"));
-          break;
-        case STARTING:
-          Serial.print(F("STARTING"));
-          break;
-        case RUNNING:
-          Serial.print(F("RUNNING"));
-          break;
-      }
-
-      Serial.print(F(" | Debit: "));
-      Serial.print(flowLpm, 2);
-      Serial.println(F(" L/menit"));
-    }
-
-    // Evaluasi proteksi hanya saat pompa diperintahkan ON.
     bool flowOK = (flowLpm >= MIN_FLOW_LPM);
 
+    // Evaluasi aliran hanya ketika relay diperintahkan ON.
     if (state == STARTING) {
       if (flowOK) {
         state = RUNNING;
@@ -140,10 +140,49 @@ void loop() {
 
         if (lowFlowDuration >= LOW_FLOW_MS) {
           stopPump(now, F("Aliran rendah / tidak ada"));
-          return;
         }
       }
     }
+
+    Serial.print(F("Status: "));
+
+    switch (state) {
+      case STARTING:
+        Serial.print(F("STARTING | Batas deteksi aliran: "));
+        printCountdown(
+          remainingTime(START_TIMEOUT_MS, now - pumpStartedAt)
+        );
+        break;
+
+      case RUNNING:
+        Serial.print(F("RUNNING | Sisa operasi: "));
+        printCountdown(
+          remainingTime(MAX_RUN_MS, now - pumpStartedAt)
+        );
+
+        if (lowFlowDuration > 0) {
+          Serial.print(F(" | Debit rendah, OFF dalam: "));
+          printCountdown(
+            remainingTime(LOW_FLOW_MS, lowFlowDuration)
+          );
+        }
+        break;
+
+      case RESTING:
+        Serial.print(F("RESTING | Coba ON dalam: "));
+        printCountdown(
+          remainingTime(REST_MS, now - restStartedAt)
+        );
+        break;
+    }
+
+    if (ALWAYS_SHOW_FLOW || state != RESTING) {
+      Serial.print(F(" | Debit: "));
+      Serial.print(flowLpm, 2);
+      Serial.print(F(" L/menit"));
+    }
+
+    Serial.println();
   }
 
   if (state == RESTING) {
