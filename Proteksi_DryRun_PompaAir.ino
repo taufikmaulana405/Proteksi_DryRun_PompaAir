@@ -38,6 +38,8 @@ unsigned long pumpStartedAt = 0;
 unsigned long lastSampleAt  = 0;
 unsigned long lowFlowDuration = 0;
 
+float cycleVolumeLiters = 0.0f;
+
 void countPulse() {
   pulseCount++;
 }
@@ -65,13 +67,16 @@ void stopPump(unsigned long now, const __FlashStringHelper *reason) {
 void startPump(unsigned long now) {
   readAndClearPulses();
 
+  // Reset total air setiap memulai siklus pompa.
+  cycleVolumeLiters = 0.0f;
+
   pumpStartedAt = now;
   lastSampleAt = now;
   lowFlowDuration = 0;
   state = STARTING;
 
   digitalWrite(RELAY_PIN, RELAY_ON);
-  Serial.println(F("Pompa ON: menunggu aliran."));
+  Serial.println(F("Pompa ON: total air direset, menunggu aliran."));
 }
 
 void printCountdown(unsigned long remainingMs) {
@@ -127,6 +132,13 @@ void loop() {
 
     float frequencyHz = pulses * 1000.0f / elapsed;
     float flowLpm = frequencyHz / FLOW_FACTOR;
+
+    // Hitung volume air hanya selama siklus pompa aktif.
+    if (state == STARTING || state == RUNNING) {
+      float volumeThisSample = pulses / (FLOW_FACTOR * 60.0f);
+      cycleVolumeLiters += volumeThisSample;
+    }
+
     bool flowOK = (flowLpm >= MIN_FLOW_LPM);
 
     // Evaluasi aliran hanya ketika relay diperintahkan ON.
@@ -177,6 +189,11 @@ void loop() {
       Serial.print(flowLpm, 2);
       Serial.print(F(" L/menit"));
     }
+
+    // Total air selalu ditampilkan, termasuk selama RESTING.
+    Serial.print(F(" | Total siklus: "));
+    Serial.print(cycleVolumeLiters, 2);
+    Serial.print(F(" L"));
 
     Serial.println();
   }
