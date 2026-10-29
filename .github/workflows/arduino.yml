@@ -39,6 +39,6 @@ jobs:
       - name: Upload compiled artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Proteksi_DryRun_PompaAir-arduino-uno
+          name: Proteksi_DryRun_PompaAir-arduino-uno-${{ github.sha }}
           path: build/
           if-no-files-found: error

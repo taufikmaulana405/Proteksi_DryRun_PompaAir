@@ -59,7 +59,9 @@ GitHub Actions menjalankan verifikasi setiap push ke `main`, pull request, atau
 workflow dispatch. Workflow memasang Arduino CLI dan core AVR, lalu mengompilasi
 sketch untuk **Arduino Uno** dengan semua warning diaktifkan. Jika kompilasi
 berhasil, hasil build tersedia sebagai artifact
-`Proteksi_DryRun_PompaAir-arduino-uno` pada workflow run tersebut.
+`Proteksi_DryRun_PompaAir-arduino-uno-<commit-sha>` pada workflow run tersebut.
+Nama artifact memakai SHA commit penuh agar hasil build dapat dilacak ke commit
+yang menghasilkannya.
 
 ## Siklus kerja
 
