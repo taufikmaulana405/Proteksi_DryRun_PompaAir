@@ -104,9 +104,54 @@ unsigned long remainingTime(unsigned long duration, unsigned long elapsed) {
   }
 }
 
+void updateStatusLed(unsigned long now) {
+  static State previousState = RESTING;
+  static unsigned long lastBlinkAt = 0;
+  static bool ledOn = false;
+
+  // Mulai pola baru ketika status berubah.
+  if (state != previousState) {
+    previousState = state;
+    lastBlinkAt = now;
+    ledOn = true;
+
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
+  // RUNNING: LED menyala terus.
+  if (state == RUNNING) {
+    digitalWrite(LED_BUILTIN, HIGH);
+    return;
+  }
+
+  unsigned long blinkInterval;
+
+  if (state == STARTING) {
+    blinkInterval = 250UL;
+  } else {
+    // RESTING
+    blinkInterval = 1000UL;
+  }
+
+  if (now - lastBlinkAt >= blinkInterval) {
+    lastBlinkAt = now;
+
+    if (ledOn) {
+      ledOn = false;
+      digitalWrite(LED_BUILTIN, LOW);
+    } else {
+      ledOn = true;
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
+  }
+}
+
 void setup() {
   digitalWrite(RELAY_PIN, RELAY_OFF);
   pinMode(RELAY_PIN, OUTPUT);
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
 
   pinMode(FLOW_PIN, INPUT_PULLUP);
   attachInterrupt(
@@ -123,6 +168,8 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
+
+  updateStatusLed(now);
 
   // Sampling dan laporan Serial setiap detik pada semua status.
   if (now - lastSampleAt >= SAMPLE_MS) {
