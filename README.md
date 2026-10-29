@@ -53,6 +53,14 @@ Pemasangan bagian listrik AC harus dilakukan oleh teknisi yang kompeten.
 5. Buka Serial Monitor pada baud rate **9600**.
 6. Pastikan pompa, arah aliran, dan pembacaan debit bekerja dengan benar.
 
+## Verifikasi otomatis
+
+GitHub Actions menjalankan verifikasi setiap push ke `main`, pull request, atau
+workflow dispatch. Workflow memasang Arduino CLI dan core AVR, lalu mengompilasi
+sketch untuk **Arduino Uno** dengan semua warning diaktifkan. Jika kompilasi
+berhasil, hasil build tersedia sebagai artifact
+`Proteksi_DryRun_PompaAir-arduino-uno` pada workflow run tersebut.
+
 ## Siklus kerja
 
 ```mermaid

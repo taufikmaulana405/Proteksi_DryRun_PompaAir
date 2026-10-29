@@ -1,0 +1,44 @@
+name: Verify Arduino sketch
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile Arduino Uno sketch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Arduino AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Compile sketch
+        run: |
+          mkdir -p build
+          arduino-cli compile \
+            --fqbn arduino:avr:uno \
+            --warnings all \
+            --build-path build \
+            .
+
+      - name: Upload compiled artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Proteksi_DryRun_PompaAir-arduino-uno
+          path: build/
+          if-no-files-found: error
