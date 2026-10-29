@@ -92,7 +92,11 @@ void printCountdown(unsigned long remainingMs) {
 }
 
 unsigned long remainingTime(unsigned long duration, unsigned long elapsed) {
-  return (elapsed >= duration) ? 0UL : duration - elapsed;
+  if (elapsed >= duration) {
+    return 0UL;
+  } else {
+    return duration - elapsed;
+  }
 }
 
 void setup() {
@@ -149,30 +153,22 @@ void loop() {
     switch (state) {
       case STARTING:
         Serial.print(F("STARTING | Batas deteksi aliran: "));
-        printCountdown(
-          remainingTime(START_TIMEOUT_MS, now - pumpStartedAt)
-        );
+        printCountdown(remainingTime(START_TIMEOUT_MS, now - pumpStartedAt));
         break;
 
       case RUNNING:
         Serial.print(F("RUNNING | Sisa operasi: "));
-        printCountdown(
-          remainingTime(MAX_RUN_MS, now - pumpStartedAt)
-        );
+        printCountdown(remainingTime(MAX_RUN_MS, now - pumpStartedAt));
 
         if (lowFlowDuration > 0) {
           Serial.print(F(" | Debit rendah, OFF dalam: "));
-          printCountdown(
-            remainingTime(LOW_FLOW_MS, lowFlowDuration)
-          );
+          printCountdown(remainingTime(LOW_FLOW_MS, lowFlowDuration));
         }
         break;
 
       case RESTING:
         Serial.print(F("RESTING | Coba ON dalam: "));
-        printCountdown(
-          remainingTime(REST_MS, now - restStartedAt)
-        );
+        printCountdown(remainingTime(REST_MS, now - restStartedAt));
         break;
     }
 
