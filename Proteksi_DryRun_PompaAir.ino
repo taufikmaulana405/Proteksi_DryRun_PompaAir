@@ -30,7 +30,7 @@ enum State {
   STARTING,
   RUNNING
 };
-State state = RESTING; // Status awal saat Arduino menyala
+State state = RESTING; // Definisi awal status pompa
 
 // Variabel global untuk menghitung pulsa sensor aliran
 volatile unsigned long pulseCount = 0;
