@@ -15,13 +15,13 @@ const float MIN_FLOW_LPM = 7.0f;
 
 // true: tampilkan debit setiap detik pada semua status.
 // false: tampilkan debit hanya saat STARTING atau RUNNING.
-const bool ALWAYS_SHOW_FLOW = false;
+const bool ALWAYS_SHOW_FLOW = true;
 
 // Waktu dalam milidetik
-const unsigned long START_TIMEOUT_MS = 15000UL; // Batas waktu menunggu aliran saat STARTING
+const unsigned long START_TIMEOUT_MS = 30000UL; // Batas waktu menunggu aliran saat STARTING
 const unsigned long LOW_FLOW_MS      = 3000UL; // Batas waktu aliran rendah saat RUNNING
 const unsigned long MAX_RUN_MS       = 30UL * 60UL * 1000UL; // Batas waktu operasi pompa
-const unsigned long REST_MS          = 30UL * 60UL * 1000UL; // Batas waktu istirahat (RESTING)
+const unsigned long REST_MS          = 15UL * 60UL * 1000UL; // Batas waktu istirahat (RESTING)
 const unsigned long SAMPLE_MS        = 1000UL; // Interval sampling sensor aliran
 
 // Status Pompa

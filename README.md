@@ -9,7 +9,7 @@ aliran air memenuhi batas minimum dan batas operasi maksimal.
 - Pompa langsung memulai saat Arduino dinyalakan.
 - Menunggu aliran awal selama maksimal **15 detik**.
 - Mematikan pompa jika aliran berada di bawah batas minimum selama **3 detik**.
-- Membatasi satu siklus operasi pompa hingga **30 menit**.
+- Membatasi satu siklus operasi pompa hingga **15 menit**.
 - Menunggu **30 menit** sebelum mencoba menyalakan pompa kembali setelah berhenti.
 
 > **Catatan:** Ini adalah konfigurasi awal dan dapat diubah pada variabel di dalam kode.
@@ -60,8 +60,6 @@ workflow dispatch. Workflow memasang Arduino CLI dan core AVR, lalu mengompilasi
 sketch untuk **Arduino Uno** dengan semua warning diaktifkan. Jika kompilasi
 berhasil, hasil build tersedia sebagai artifact
 `Proteksi_DryRun_PompaAir-arduino-uno-<commit-sha>` pada workflow run tersebut.
-Nama artifact memakai SHA commit penuh agar hasil build dapat dilacak ke commit
-yang menghasilkannya.
 
 ## Siklus kerja
 
@@ -91,7 +89,7 @@ Parameter utama berada di bagian atas sketch:
 | `START_TIMEOUT_MS` | `15000` | Batas deteksi aliran awal |
 | `LOW_FLOW_MS` | `3000` | Durasi toleransi debit rendah |
 | `MAX_RUN_MS` | `30 menit` | Durasi maksimum satu siklus |
-| `REST_MS` | `30 menit` | Jeda sebelum percobaan berikutnya |
+| `REST_MS` | `15 menit` | Jeda sebelum percobaan berikutnya |
 | `SAMPLE_MS` | `1000` | Interval pembacaan sensor |
 | `ALWAYS_SHOW_FLOW` | `false` | Tampilkan debit juga saat `RESTING` |
 
