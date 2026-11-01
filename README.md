@@ -119,3 +119,30 @@ Pesan penghentian menunjukkan penyebabnya, misalnya:
 Sistem ini adalah proteksi berbasis perangkat lunak dan tidak menggantikan
 pengaman listrik, thermal overload, sekering, grounding, atau emergency stop.
 Uji sistem tanpa beban dan verifikasi logika relay sebelum menghubungkan pompa.
+
+## LCD I2C 16x2
+
+Pasang library **hd44780** oleh Bill Perry melalui Library Manager Arduino IDE
+(workflow memakai versi 1.3.2). Implementasi `hd44780_I2Cexp` mendeteksi alamat
+serta pemetaan backpack yang didukung secara otomatis:
+https://github.com/duinoWitchery/hd44780
+
+Pada Uno, hubungkan SDA ke A4, SCL ke A5, serta VCC/GND sesuai modul LCD.
+LCD diperbarui setiap detik dan ketika status berubah:
+
+```text
+REST | 00:03
+60 L/m | 1500 L
+```
+
+Status: `START`, `RUN`, `REST`. Countdown `mm:ss` mengikuti batas startup,
+sisa operasi, atau sisa istirahat. Debit selalu terlihat pada LCD, termasuk REST.
+Angka debit dan volume dibulatkan ke liter utuh hanya pada tampilan;
+perhitungan internal tidak berubah. Volume adalah total siklus, dipertahankan
+selama REST dan direset ketika siklus baru dimulai, bukan isi tangki terukur.
+Untuk menjaga lebar 16 karakter, debit di atas rentang tampilan memakai `>99`
+dan volume di atas rentang tampilan memakai `>999` (mulai pembulatan 10000 L).
+
+Jika inisialisasi LCD gagal, Serial melaporkan kegagalan dan kontrol tetap berjalan.
+Timeout I2C saat pembaruan menonaktifkan tampilan sampai reset.
+Uji dengan daya pompa diputus; reset/upload menyebabkan siklus mulai otomatis.

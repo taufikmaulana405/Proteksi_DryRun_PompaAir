@@ -1,5 +1,17 @@
 // Proteksi Dry Run Pompa Air
 
+#include <Wire.h>
+#include <hd44780.h>
+#include <hd44780ioClass/hd44780_I2Cexp.h>
+
+const byte LCD_COLS = 16;
+const byte LCD_ROWS = 2;
+const unsigned long LCD_INTERVAL_MS = 1000UL;
+const unsigned long I2C_TIMEOUT_US = 3000UL;
+hd44780_I2Cexp lcd; // Deteksi otomatis alamat dan pemetaan backpack.
+bool lcdReady = false;
+float latestFlowLpm = 0.0f;
+
 // Pin Sensor aliran FS300A (input interrupt)
 // Pin Relay pompa (output digital)
 const byte FLOW_PIN  = 2;
@@ -81,6 +93,7 @@ void startPump(unsigned long now) {
 
   // Reset total air setiap memulai siklus pompa.
   cycleVolumeLiters = 0.0f;
+  latestFlowLpm = 0.0f;
 
   pumpStartedAt = now;
   lastSampleAt = now;
@@ -119,6 +132,75 @@ unsigned long remainingTime(unsigned long duration, unsigned long elapsed) {
   } else {
     return duration - elapsed;
   }
+}
+
+// Tulis satu baris penuh agar sisa karakter lama terhapus tanpa clear().
+void writeLcdLine(byte row, const char *text) {
+  lcd.setCursor(0, row);
+  bool ended = false;
+  for (byte column = 0; column < LCD_COLS; column++) {
+    if (!ended && text[column] == '\0') {
+      ended = true;
+    }
+    if (ended) {
+      lcd.write(' ');
+    } else {
+      lcd.write(text[column]);
+    }
+    if (Wire.getWireTimeoutFlag()) {
+      lcdReady = false;
+      return;
+    }
+  }
+}
+
+// Pembaruan tiap detik atau segera setelah status berubah.
+void updateLcd(unsigned long now) {
+  static unsigned long lastUpdateAt = 0;
+  static State previousState = RESTING;
+  static bool firstUpdate = true;
+  if (!lcdReady) return;
+  if (!firstUpdate && state == previousState &&
+      now - lastUpdateAt < LCD_INTERVAL_MS) return;
+  firstUpdate = false;
+  previousState = state;
+  lastUpdateAt = now;
+
+  const char *label;
+  unsigned long remainingMs;
+  if (state == STARTING) {
+    label = "START";
+    remainingMs = remainingTime(START_TIMEOUT_MS, now - pumpStartedAt);
+  } else if (state == RUNNING) {
+    label = "RUN";
+    remainingMs = remainingTime(MAX_RUN_MS, now - pumpStartedAt);
+  } else {
+    label = "REST";
+    remainingMs = remainingTime(REST_MS, now - restStartedAt);
+  }
+  unsigned long seconds = remainingMs / 1000UL;
+  if (remainingMs % 1000UL != 0) seconds++;
+  char line[LCD_COLS + 1];
+  snprintf(line, sizeof(line), "%s | %02lu:%02lu", label,
+           seconds / 60UL, seconds % 60UL);
+  writeLcdLine(0, line);
+  if (!lcdReady) return;
+
+  // Batasi lebar kolom; tanda > menunjukkan nilai melampaui tampilan.
+  char flowText[4];
+  char volumeText[5];
+  if (latestFlowLpm >= 99.5f) {
+    strcpy(flowText, ">99");
+  } else {
+    snprintf(flowText, sizeof(flowText), "%lu", (unsigned long)(latestFlowLpm + 0.5f));
+  }
+  if (cycleVolumeLiters >= 9999.5f) {
+    strcpy(volumeText, ">999");
+  } else {
+    snprintf(volumeText, sizeof(volumeText), "%lu", (unsigned long)(cycleVolumeLiters + 0.5f));
+  }
+  snprintf(line, sizeof(line), "%s L/m | %s L", flowText, volumeText);
+  writeLcdLine(1, line);
 }
 
 // Fungsi untuk memperbarui status LED
@@ -185,8 +267,16 @@ void setup() {
   // Inisialisasi Serial Monitor
   Serial.begin(9600);
 
+  // Inisialisasi LCD saat relay masih OFF. Timeout membatasi I2C macet.
+  Wire.begin();
+  Wire.setWireTimeout(I2C_TIMEOUT_US, true);
+  lcdReady = (lcd.begin(LCD_COLS, LCD_ROWS) == 0);
+  if (Wire.getWireTimeoutFlag()) lcdReady = false;
+  if (!lcdReady) Serial.println(F("LCD tidak tersedia; tampilan dinonaktifkan."));
+
   // Langsung STARTING dan aktifkan relay saat Arduino menyala.
   startPump(millis());
+  updateLcd(millis());
 }
 
 void loop() {
@@ -205,6 +295,7 @@ void loop() {
     // Hitung debit air dalam L/min
     float frequencyHz = pulses * 1000.0f / elapsed;
     float flowLpm = frequencyHz / FLOW_FACTOR;
+    latestFlowLpm = flowLpm;
 
     // Hitung volume air hanya selama siklus pompa aktif.
     if (state == STARTING || state == RUNNING) {
@@ -276,15 +367,18 @@ void loop() {
     if (now - restStartedAt >= REST_MS) {
       startPump(now);
     }
+    updateLcd(now);
     return;
   }
 
   if (now - pumpStartedAt >= MAX_RUN_MS) {
     stopPump(now, F("Batas operasi 30 menit tercapai"));
+    updateLcd(now);
     return;
   }
 
   if (state == STARTING && now - pumpStartedAt >= START_TIMEOUT_MS) {
     stopPump(now, F("Aliran awal tidak terdeteksi"));
   }
+  updateLcd(now);
 }
